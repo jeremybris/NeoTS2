@@ -513,6 +513,9 @@ private:
     int clockRate_ = 0;       // frames a second the clock keeps to when not waiting for the screen, 0 for none
     void startFromOptions();
     void handleEvent(const ts2::platform::Event& e);
+    // Asks for typed text while a text box of Create-a-Sim or the story editor has the keyboard.
+    void syncTextInput();
+    bool textInputOn_ = false;
     void mouseEvent(const ts2::platform::Event& e);
     void windowClicked(int window);
     void showSprites(double seconds, bool scene);

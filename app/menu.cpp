@@ -2771,6 +2771,7 @@ void Game::run() {
         while (pf::pollEvent(e)) {
             handleEvent(e);
         }
+        syncTextInput();
         // The window can change size at any time: going fullscreen (which a hidden window only does
         // once it shows, after the game was first laid out), being maximized or dragged. The game is
         // laid out again for the size it has now.
@@ -2932,6 +2933,22 @@ bool Game::blockedWhileLoading(const pf::Event& e) {
         return false;
     }
     return loadingGate_.drops(e.type == pf::Event::Type::MouseDown, static_cast<unsigned>(e.button), loadingScene());
+}
+
+void Game::syncTextInput() {
+    // Typed text only comes once the window asks for it (SDL's text input). Create-a-Sim's and the
+    // story editor's text boxes ask while one of them has the keyboard; the baby naming dialog asks
+    // on its own while it is open.
+    StoryEditor* editor = activeStoryEditor();
+    const bool wanted = (cas_.isOpen() && cas_.editing()) || (editor != nullptr && editor->editing());
+    if (wanted != textInputOn_) {
+        textInputOn_ = wanted;
+        if (wanted) {
+            pf::startTextInput();
+        } else {
+            pf::stopTextInput();
+        }
+    }
 }
 
 void Game::handleEvent(const pf::Event& e) {
