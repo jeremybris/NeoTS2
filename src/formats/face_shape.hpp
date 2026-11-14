@@ -36,4 +36,10 @@ struct FaceShape {
 // Throws on other versions and broken data, points that aren't finite numbers among it.
 FaceShape parse(std::span<const std::uint8_t> data);
 
+// The face shape as the game writes one: each mesh's key (its age, gender and group), a pool of the
+// distinct vectors (offsets, and texture coordinates with a 0), then each mesh's points as indices
+// into it. parse reads it back the same (but what parse leaves out for the version). Throws when
+// the pool or a mesh holds more than the format can count (65535).
+std::vector<std::uint8_t> encode(const FaceShape& shape);
+
 } // namespace ts2::faceshape

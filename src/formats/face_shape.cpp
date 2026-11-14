@@ -1,8 +1,11 @@
 #include "formats/face_shape.hpp"
 
 #include "formats/binary_reader.hpp"
+#include "formats/binary_writer.hpp"
 
+#include <bit>
 #include <cmath>
+#include <map>
 #include <stdexcept>
 #include <string>
 
@@ -86,6 +89,57 @@ FaceShape parse(std::span<const std::uint8_t> data) {
         throw std::runtime_error("face shape: no data tag");
     }
     return shape;
+}
+
+std::vector<std::uint8_t> encode(const FaceShape& shape) {
+    constexpr std::size_t kMost = 0xFFFF;
+    // Each distinct vector once, by its bits.
+    std::vector<std::array<float, 3>> pool;
+    std::map<std::array<std::uint32_t, 3>, std::uint16_t> index;
+    auto indexOf = [&](const std::array<float, 3>& v) {
+        const std::array<std::uint32_t, 3> bits{std::bit_cast<std::uint32_t>(v[0]), std::bit_cast<std::uint32_t>(v[1]), std::bit_cast<std::uint32_t>(v[2])};
+        if (const auto it = index.find(bits); it != index.end()) {
+            return it->second;
+        }
+        if (pool.size() >= kMost) {
+            throw std::runtime_error("face shape: too many distinct points to write");
+        }
+        pool.push_back(v);
+        return index.emplace(bits, static_cast<std::uint16_t>(pool.size() - 1)).first->second;
+    };
+    std::vector<std::vector<std::uint16_t>> lists;
+    for (const auto& mesh : shape.meshes) {
+        if (mesh.points.size() * 2 > kMost) {
+            throw std::runtime_error("face shape: a mesh with too many points to write");
+        }
+        auto& list = lists.emplace_back();
+        for (const auto& p : mesh.points) {
+            list.push_back(indexOf(p.offset));
+            list.push_back(indexOf({p.uv[0], p.uv[1], 0}));
+        }
+    }
+    BinaryWriter w;
+    w.u32(shape.version);
+    w.u32(static_cast<std::uint32_t>(shape.meshes.size()));
+    for (const auto& mesh : shape.meshes) {
+        w.u32(static_cast<std::uint32_t>(mesh.age) | static_cast<std::uint32_t>(mesh.gender) << 8 | static_cast<std::uint32_t>(mesh.group) << 16);
+    }
+    w.u32(kPoolTag);
+    w.u16(static_cast<std::uint16_t>(pool.size()));
+    for (const auto& v : pool) {
+        w.f32(v[0]);
+        w.f32(v[1]);
+        w.f32(v[2]);
+    }
+    w.u32(kListsTag);
+    for (const auto& list : lists) {
+        w.u16(static_cast<std::uint16_t>(list.size()));
+        for (const std::uint16_t i : list) {
+            w.u16(i);
+        }
+    }
+    w.u32(kDataTag);
+    return w.take();
 }
 
 } // namespace ts2::faceshape

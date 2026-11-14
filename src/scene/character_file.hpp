@@ -35,8 +35,9 @@ struct CharacterResource {
 // - its own face for its age and each later one: the base face of its skin (a copy of its resource
 //   node, shape, geometry nodes and meshes, named in the file's group) with its face template's
 //   change made to the meshes, a material drawing its eyes and eyebrows on it, and the face's part
-//   property set.
-// Not yet: its face shape (LxNR), portraits, and mesh overlays (facial hair, glasses).
+//   property set;
+// - its face shape (LxNR): the face template's change for every age and gender, near faces only.
+// Not yet: far-away faces, portraits, and mesh overlays (facial hair, glasses).
 // Throws when the game's files lack what it needs (TemplatePerson, the base face). Problems that
 // leave a part out are added to `problems`.
 std::vector<CharacterResource> characterResources(Assets& assets, const OutfitCatalog& catalog, const MadeLook& made,

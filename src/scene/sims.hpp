@@ -111,6 +111,11 @@ struct MadeFace {
 // face template has a face for each age).
 MadeFace madeFace(Assets& assets, const OutfitCatalog& catalog, const MadeLook& made, std::uint32_t age, std::vector<std::string>& problems);
 
+// A face template's change to the base face of an age and gender (flags), none when the template has
+// no face for them.
+std::shared_ptr<const MeshEdit> faceTemplateChange(Assets& assets, const OutfitCatalog& catalog, const std::string& family, std::uint32_t age,
+                                                   std::uint32_t gender, std::vector<std::string>& problems);
+
 // The skeleton (its resource node) the game gives a Sim of this age flag when its age data names none.
 scenegraph::Link defaultSkeletonKey(std::uint32_t age);
 

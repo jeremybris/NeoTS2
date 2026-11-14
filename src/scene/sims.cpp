@@ -552,6 +552,12 @@ MadeFace madeFace(Assets& assets, const OutfitCatalog& catalog, const MadeLook& 
     return face;
 }
 
+std::shared_ptr<const MeshEdit> faceTemplateChange(Assets& assets, const OutfitCatalog& catalog, const std::string& family, std::uint32_t age,
+                                                   std::uint32_t gender, std::vector<std::string>& problems) {
+    auto edit = faceTemplateEdit(assets, catalog, family, age == kYoungAdultAge ? kAdultAge : age, gender, problems);
+    return edit ? std::make_shared<const MeshEdit>(std::move(*edit)) : nullptr;
+}
+
 sg::Link defaultSkeletonKey(std::uint32_t age) {
     const auto key = hash::scenegraphKey(defaultSkeleton(age) + "_cres");
     return {kCres, sg::kScenegraphGroup, key.instance, key.instanceHigh};

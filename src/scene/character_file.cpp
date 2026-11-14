@@ -2,6 +2,7 @@
 
 #include "formats/binary_writer.hpp"
 #include "formats/dbpf_writer.hpp"
+#include "formats/face_shape.hpp"
 #include "formats/hash.hpp"
 #include "formats/propset.hpp"
 #include "formats/reference_list.hpp"
@@ -376,6 +377,92 @@ FaceSet faceSet(Assets& assets, const OutfitCatalog& catalog, const MadeLook& ma
     return out;
 }
 
+// The near face's mesh (its resource node's shape's first geometry node's) of a base face part.
+std::optional<sg::Mesh> baseFaceMesh(Assets& assets, const sg::Link& part) {
+    const auto props = assets.skinResource(part);
+    const auto refs = assets.skinResource({0xAC506764, part.group, part.instance, part.instanceHigh});
+    if (!props || !refs) {
+        return std::nullopt;
+    }
+    const auto p = propset::parse(*props);
+    const auto links = reflist::parse(*refs);
+    const std::uint32_t r = propset::number(p, "resourcekeyidx");
+    const auto cres = r < links.size() ? assets.byKey(links[r]) : std::nullopt;
+    if (!cres) {
+        return std::nullopt;
+    }
+    const auto cresLinks = sg::parseContainer(*cres);
+    const auto shapeLink = linkOfType(cresLinks, kShpe);
+    const auto shpe = shapeLink ? assets.byKey(cresLinks.links[*shapeLink]) : std::nullopt;
+    if (!shpe) {
+        return std::nullopt;
+    }
+    const auto shape = sg::parseShape(*shpe);
+    if (shape.geometryNodes.empty() || shape.geometryNodes[0].empty()) {
+        return std::nullopt;
+    }
+    const auto gmnd = assets.byName(kGmnd, shape.geometryNodes[0]);
+    const auto gmndLinks = gmnd ? sg::parseContainer(*gmnd) : sg::Container{};
+    const auto meshLink = linkOfType(gmndLinks, kGmdc);
+    const auto gmdc = meshLink ? assets.byKey(gmndLinks.links[*meshLink]) : std::nullopt;
+    if (!gmdc) {
+        return std::nullopt;
+    }
+    return sg::parseMesh(*gmdc);
+}
+
+// A Sim's face shape (LxNR), as the game keeps it beside its faces: for each age (the five a Sim
+// lives through, then babies) and gender, its face template's change to that age's and gender's base
+// face of its skin, at each triangle corner of the base face (0 where the template has no face for
+// it). Only the near faces: the far-away ones aren't made yet.
+std::vector<std::uint8_t> faceShape(Assets& assets, const OutfitCatalog& catalog, const MadeLook& made, const std::string& skinTone,
+                                    const std::string& family, std::vector<std::string>& problems) {
+    constexpr std::array<std::uint32_t, 6> kShapeAges = {kToddlerAge, kChildAge, kTeenAge, kAdultAge, kElderAge, kBabyAge};
+    faceshape::FaceShape shape;
+    shape.version = 4;
+    for (std::uint8_t gender = 0; gender < 2; ++gender) {
+        const std::uint32_t genderFlag = gender == 0 ? 2 : 1;  // the face shape's 0 is male
+        for (std::uint8_t a = 0; a < kShapeAges.size(); ++a) {
+            const auto base = baseFace(catalog, kShapeAges[a], genderFlag, skinTone, family);
+            auto mesh = base ? baseFaceMesh(assets, *base) : std::nullopt;
+            const auto group = mesh ? std::find_if(mesh->groups.begin(), mesh->groups.end(),
+                                                   [&](const sg::Group& g) { return g.primitive == sg::kTriangleList && g.link < mesh->links.size(); })
+                                    : std::vector<sg::Group>::iterator{};
+            if (!mesh || group == mesh->groups.end()) {
+                continue;
+            }
+            const auto& link = mesh->links[group->link];
+            const auto before = sg::vertexFloats(*mesh, link, sg::kPositions);
+            const auto uv = sg::vertexFloats(*mesh, link, sg::kTextureCoordinates);
+            auto after = before;
+            if (!made.faceFamily.empty()) {
+                if (const auto edit = faceTemplateChange(assets, catalog, made.faceFamily, kShapeAges[a], genderFlag, problems)) {
+                    auto edited = *mesh;
+                    edit->apply(edited);
+                    after = sg::vertexFloats(edited, edited.links[group->link], sg::kPositions);
+                }
+            }
+            faceshape::FaceShape::Mesh out;
+            out.age = a;
+            out.gender = gender;
+            for (const std::uint16_t v : group->indices) {
+                faceshape::Point p;
+                if (std::size_t{v} * 3 + 2 < before.size() && after.size() == before.size()) {
+                    for (int i = 0; i < 3; ++i) {
+                        p.offset[i] = after[v * 3 + i] - before[v * 3 + i];
+                    }
+                }
+                if (std::size_t{v} * 2 + 1 < uv.size()) {
+                    p.uv = {uv[v * 2], uv[v * 2 + 1]};
+                }
+                out.points.push_back(p);
+            }
+            shape.meshes.push_back(std::move(out));
+        }
+    }
+    return faceshape::encode(shape);
+}
+
 } // namespace
 
 std::vector<CharacterResource> characterResources(Assets& assets, const OutfitCatalog& catalog, const MadeLook& made,
@@ -438,6 +525,8 @@ std::vector<CharacterResource> characterResources(Assets& assets, const OutfitCa
     if (partInstance == 1) {
         fail("no face could be made");
     }
+    // Its face shape: the face template's change for every age and gender.
+    out.push_back({{faceshape::kType, kLocal, 1, 0}, faceShape(assets, catalog, made, skinTone, faceFamily, problems)});
 
     // The age data: its own face in every outfit category (none in the skin outfit), and the age's
     // skeleton.
