@@ -97,9 +97,9 @@ void put32(std::vector<std::uint8_t>& b, std::size_t at, std::uint32_t v) {
     put16(b, at + 2, static_cast<std::uint16_t>(v >> 16));
 }
 
-// TemplatePerson's object definition made the Sim's, as the game makes it: its file name (at the
-// start and at the end), the version the game writes Sims' in, the Sim's GUID and TemplatePerson's
-// as its template, and the values the game sets for a Sim.
+// TemplatePerson's object definition made the Sim's, as the Legacy Collection's Create-a-Sim makes
+// it: its file name (at the start and at the end), the object type a person (2), the Sim's GUID in
+// its own place and where the template's own stood, and TemplatePerson's as its template.
 std::vector<std::uint8_t> simObjectDefinition(std::vector<std::uint8_t> b, std::uint32_t guid, const std::string& fileName) {
     constexpr std::size_t kNameField = 64;
     if (b.size() < 0xD0 + 4) {
@@ -110,12 +110,9 @@ std::vector<std::uint8_t> simObjectDefinition(std::vector<std::uint8_t> b, std::
     const std::size_t tail = b.size() - templateName.size() - 4;
     std::fill(b.begin(), b.begin() + kNameField, std::uint8_t{0});
     std::copy_n(fileName.begin(), std::min(fileName.size(), kNameField - 1), b.begin());
-    put16(b, 0x40, 0x8B);
-    put16(b, 0x52, 0x11);
+    put16(b, 0x52, 2);  // a person, where the template is a template (0x10)
     put32(b, 0x5C, guid);
-    put16(b, 0x98, 0x000A);
-    put16(b, 0xA2, 0);
-    put16(b, 0xC0, 0);
+    put32(b, 0x7A, guid);  // the template's own GUID there becomes the Sim's
     put32(b, 0xCC, kTemplatePersonGuid);
     b.resize(tail);
     BinaryWriter w;

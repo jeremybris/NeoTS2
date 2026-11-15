@@ -165,6 +165,9 @@ bool cancelInteraction(World& world, SimObject& sim, std::uint32_t id);
 
 class Vm {
 public:
+    // An object made outside a script (a household moving in) started as Create Object starts one: a
+    // new Sim gets its neighbor's person data first, then Init runs and Main starts.
+    void startNewObject(SimObject& created, const ObjectType& type) { startCreated(created, type); }
     explicit Vm(CodeSource& code, Limits limits = {}, World* world = nullptr);
 
     RunResult run(ThreadState& thread, std::uint32_t objectGroup, std::uint16_t entry,

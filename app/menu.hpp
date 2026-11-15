@@ -20,6 +20,7 @@ struct MenuOptions {
     int play = -1;               // open this neighborhood straight away
     std::string bin;             // and open its "families" or "lots" bin
     int lot = 0;                 // or enter this lot of it
+    std::uint32_t moveInFamily = 0;  // a test: this family of the Families bin moved into `lot` first
     int clickX = -1, clickY = -1;  // or the lot under this point of the screen
     int cardX = -1, cardY = -1;    // or open the card of the lot under this point
     int hoverX = -1, hoverY = -1;  // the mouse rests here (for a picture with a tooltip)

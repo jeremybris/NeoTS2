@@ -355,6 +355,12 @@ private:
     std::optional<ts2::tga::Pixels> drawCasFamilyPicture(int width, int height, std::vector<int>& middles);
     // Accept Family: the family saved into the open neighborhood (its Sims' files, records and picture).
     void saveCasFamily();
+    // Move In (game_move_in.cpp): a lot clicked while the Families bin holds a family asks to move it
+    // in there; Yes moves it in and opens the lot. moveInClicked takes the box's clicks.
+    void askMoveIn(const NeighborhoodUi::BinFamily& family, std::uint32_t lot);
+    bool moveInClicked(int window);
+    app::DialogBox moveInBox_;
+    std::uint32_t moveInFamily_ = 0, moveInLot_ = 0;
     CasScreen cas_{screen_};
     std::shared_future<ts2::scene::OutfitCatalog> casCatalog_;
     std::unique_ptr<ts2::scene::RigLibrary> casRigs_;

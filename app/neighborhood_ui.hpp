@@ -66,8 +66,15 @@ public:
 
     // Shows the panels for a neighborhood (its folder in Neighborhoods and its name).
     void open(const std::filesystem::path& folder, const std::string& name, Content content);
-    // Reads the families without a home again (a family saved from Create-a-Sim) for the Families bin.
+    // Reads the households again (a family saved from Create-a-Sim, or moved in): the Families bin's,
+    // and the lots' cards and which lots are lived in.
     void refreshFamilies(const std::filesystem::path& folder);
+    // The Families bin's household picked up to move in (by clicking its picture), until a lot is
+    // chosen or its card closes.
+    std::optional<BinFamily> heldFamily() const;
+    void dropFamily() { held_.reset(); }
+    // A lot's card, null when it has none.
+    const LotCard* lotCard(std::uint32_t lot) const;
     void close();
 
     enum class Bin { None, Families, Lots, Decorations };
@@ -178,6 +185,7 @@ private:
     std::map<std::uint32_t, int> lotBackgrounds_;  // each lots bin view's background, by its id
     std::vector<ts2::tga::Pixels> familyPictures_, lotPictures_;
     std::vector<BinFamily> binFamilies_;
+    std::optional<std::size_t> held_;  // see heldFamily
     // Shows the card of the Families bin's household `index`, beside the bin.
     void showFamilyCard(std::size_t index);
     Bin bin_ = Bin::None;

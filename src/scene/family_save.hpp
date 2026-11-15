@@ -53,4 +53,10 @@ SavedFamily saveNewFamily(Assets& assets, const OutfitCatalog& catalog, const st
 // content::rewritePackage does, or made when the neighborhood has none yet.
 void saveFamilyPicture(const std::filesystem::path& folder, std::uint32_t family, const std::vector<std::uint8_t>& jpeg);
 
+// Moves a family of the Families bin into lot `lot` of the neighborhood in `folder`, as the game's
+// Move In does to the family's record: its lot and current lot are the lot, its flags get 1, and
+// `price` comes off its funds. The family's Sims arrive when the lot first loads (see
+// sim::LotSimulation). Throws when the family isn't in the bin or the lot has a household.
+void moveFamilyIn(const std::filesystem::path& folder, std::uint32_t family, std::uint32_t lot, std::int32_t price);
+
 } // namespace ts2::scene

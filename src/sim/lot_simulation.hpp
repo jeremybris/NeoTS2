@@ -142,6 +142,9 @@ private:
     std::size_t resets_ = 0;
     std::deque<ObjectError> objectErrors_;
     std::vector<std::int16_t> household_;
+    // The household's Sims not on the lot yet (a family just moved in), by GUID: they arrive on the first
+    // tick the lot's routes are known (see bringArrivals).
+    std::vector<std::uint32_t> arriving_;
     mutable std::vector<std::int16_t> familyHousehold_;  // the family's Sims on the lot, as household() last found them
     std::unique_ptr<const content::Lot> lot_;  // kept until the route world is built
     std::vector<content::Product> products_;
@@ -180,6 +183,7 @@ private:
     void stepObject(std::int16_t id);
     void runTimers(std::int16_t id);
     void findHousehold(const content::Neighborhood& hood, const std::filesystem::path& lot);
+    void bringArrivals();
     RouteIntersects intersectionsFor(const SimObject& sim);
     std::pair<bool, float> portalCheck(const SimObject& sim, std::initializer_list<std::int16_t> parts);
     void findCharacterFiles();

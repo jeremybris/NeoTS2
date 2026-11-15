@@ -1,6 +1,6 @@
 // NeoTS2: opens a saved lot in a window, or shows the game's main menu.
 //   neots2 <install folder> --menu [--user <user folder>] [--size w h | --fit-screen] [--preview n]
-//          [--play n [--bin families|lots|decorations|story|cas|options|gameoptions|chooser|quit] [--save-neighborhood] [--record-seconds s] [--type text] [--lot id] [--click x y] [--card x y]]
+//          [--play n [--bin families|lots|decorations|story|cas|options|gameoptions|chooser|quit] [--save-neighborhood] [--record-seconds s] [--type text] [--lot id | --move-in family lot] [--click x y] [--card x y]]
 //          [--hover x y (on the neighborhood, or the lot before the picture)] [--ui-click x y | --ui-right-click x y | --ui-hover x y | --ui-type text | --cas-write-character file | --cas-show-character file
 //          (on the lot's panels before the picture, repeatable)]
 //          [--shot <out.png>] [--seed n (the neighborhood ground's variants, so pictures repeat)]
@@ -351,6 +351,9 @@ int main(int argc, char** argv) {
                 menu.play = std::stoi(argv[++i]);
             } else if (arg == "--bin" && i + 1 < argc) {
                 menu.bin = argv[++i];
+            } else if (arg == "--move-in" && i + 2 < argc) {
+                menu.moveInFamily = static_cast<std::uint32_t>(std::stoul(argv[++i]));
+                menu.lot = std::stoi(argv[++i]);
             } else if (arg == "--lot" && i + 1 < argc) {
                 menu.lot = std::stoi(argv[++i]);
             } else if (arg == "--view" && i + 3 < argc) {

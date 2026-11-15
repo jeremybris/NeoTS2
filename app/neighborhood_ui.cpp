@@ -444,7 +444,19 @@ std::vector<NeighborhoodUi::DecorationItem> decorationItems(const fs::path& inst
 NeighborhoodUi::NeighborhoodUi(ts2::ui::Screen& screen, ts2::content::UiData& data, int width, int height)
     : screen_(screen), data_(data), width_(width), height_(height) {}
 
+std::optional<NeighborhoodUi::BinFamily> NeighborhoodUi::heldFamily() const {
+    return held_ && *held_ < binFamilies_.size() ? std::optional(binFamilies_[*held_]) : std::nullopt;
+}
+
+const NeighborhoodUi::LotCard* NeighborhoodUi::lotCard(std::uint32_t lot) const {
+    const auto found = cards_.find(lot);
+    return found != cards_.end() ? &found->second : nullptr;
+}
+
 void NeighborhoodUi::refreshFamilies(const fs::path& folder) {
+    held_.reset();
+    cards_ = lotCards(folder);
+    occupied_ = livedInLots(folder);
     familyPictures_ = homelessFamilies(folder, binFamilies_);
     if (families_ >= 0) {
         layoutStrip(familyStrip_, familyPictures_);
@@ -742,6 +754,7 @@ NeighborhoodUi::Action NeighborhoodUi::clicked(int window) {
         showBin(bin_ == Bin::Decorations ? Bin::None : Bin::Decorations);
     } else if (const auto family = stripItemAt(familyStrip_, window); family && *family < binFamilies_.size()) {
         showFamilyCard(*family);
+        held_ = *family;  // picked up to move in
     } else if (stripClicked(familyStrip_, familyPictures_, window) || stripClicked(lotStrip_, lotPictures_, window) ||
                stripClicked(specialtyStrip_, {}, window) || stripClicked(decorationStrip_, decorationPictures_, window)) {
         // A strip's page turned, or the strip expanded or collapsed.
@@ -789,6 +802,7 @@ NeighborhoodUi::Action NeighborhoodUi::clicked(int window) {
         showStoryPage(storyPage_ + 1);
     } else if (id == kFamilyClose || id == kCommunityClose) {
         hideCard();
+        held_.reset();
     } else if (id == kFamilyEnter && cardLot_ != 0) {
         return Action::EnterLot;
     }

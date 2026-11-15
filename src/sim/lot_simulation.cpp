@@ -28,6 +28,7 @@
 #include "sim/want_refill.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <chrono>
 #include <cmath>
 #include <limits>
@@ -906,9 +907,87 @@ void LotSimulation::findHousehold(const content::Neighborhood& hood, const std::
             const SimObject* sim = world_.nextAfter(0, [&](const SimObject& o) { return o.isPerson() && o.definition.guid() == guid; });
             if (sim != nullptr) {
                 household_.push_back(sim->id);
+            } else {
+                arriving_.push_back(guid);  // a family that just moved in: its Sims arrive
             }
         }
         return;
+    }
+}
+
+// The household's Sims not on the lot yet, as a family moving in arrives: each made from its own
+// type (its character file's), set on the first level on the walkable tile nearest the lot's
+// mailbox (else its middle), and started as Create Object starts a new Sim (its neighbor's person
+// data, Init, Main). Not yet: the game's own spot and its moving-in welcome.
+void LotSimulation::bringArrivals() {
+    const RouteWorld* routes = routeWorld();
+    const RouteGrid* grid = routes ? routes->level(0) : nullptr;
+    if (grid == nullptr) {
+        return;  // the lot's routes aren't known yet
+    }
+    const auto arriving = std::exchange(arriving_, {});
+    // A tile a Sim can stand on: the route grid lets a Sim through at its middle and round it.
+    auto standable = [&](int x, int y) {
+        for (const auto [dx, dy] : {std::pair{0.5f, 0.5f}, {0.2f, 0.2f}, {0.8f, 0.2f}, {0.2f, 0.8f}, {0.8f, 0.8f}}) {
+            const int leaf = grid->leafAt(static_cast<float>(x) + dx, static_cast<float>(y) + dy);
+            if (leaf < 0 || !grid->passage(grid->cells()[static_cast<std::size_t>(leaf)]).walkable()) {
+                return false;
+            }
+        }
+        return true;
+    };
+    const int width = static_cast<int>(grid->width()), height = static_cast<int>(grid->height());
+    std::set<std::pair<int, int>> taken;
+    for (const std::uint32_t guid : arriving) {
+        const ObjectType* type = code_.objectType(guid);
+        if (type == nullptr) {
+            diag::warning("moving in: a Sim of the household has no character file to come from");
+            continue;
+        }
+        SimObject& created = world_.create(type->group, type->definition, containerSlotsOf(code_, *type));
+        // The free tile nearest the lot's mailbox (by the road, where the family comes from), else the
+        // lot's middle, rings out from it.
+        std::optional<std::pair<int, int>> spot;
+        int cx = width / 2, cy = height / 2;
+        if (const SimObject* mailbox = world_.nextAfter(0, [&](const SimObject& o) {
+                std::string name = o.definition.name;
+                std::transform(name.begin(), name.end(), name.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+                return !o.removed && !o.isPerson() && o.x != kOffLot && name.find("mailbox") != std::string::npos;
+            })) {
+            cx = mailbox->x >> 16;
+            cy = mailbox->y >> 16;
+        }
+        for (int ring = 0; ring < std::max(width, height) && !spot; ++ring) {
+            for (int dy = -ring; dy <= ring && !spot; ++dy) {
+                for (int dx = -ring; dx <= ring && !spot; ++dx) {
+                    if (std::max(std::abs(dx), std::abs(dy)) != ring) {
+                        continue;
+                    }
+                    const int x = cx + dx, y = cy + dy;
+                    if (x < 1 || y < 1 || x >= width - 1 || y >= height - 1 || taken.contains({x, y})) {
+                        continue;
+                    }
+                    if (standable(x, y)) {
+                        spot = std::pair{x, y};
+                    }
+                }
+            }
+        }
+        if (!spot) {
+            diag::warning("moving in: no free tile on the lot for a Sim of the household");
+            world_.remove(created);
+            continue;
+        }
+        taken.insert(*spot);
+        created.x = (spot->first << 16) + 0x8000;
+        created.y = (spot->second << 16) + 0x8000;
+        created.level = 1;
+        created.tile = Tile{static_cast<std::uint8_t>(spot->first), static_cast<std::uint8_t>(spot->second), 1};
+        world_.updateRoom(created);
+        vm_.startNewObject(created, *type);
+        household_.push_back(created.id);
+        diag::step(std::format("moving in: {} arrived on the lot at tile {}, {}{}", created.definition.name, spot->first, spot->second,
+                               cx != width / 2 || cy != height / 2 ? " (by the mailbox)" : ""));
     }
 }
 
@@ -1329,6 +1408,9 @@ void LotSimulation::runTimers(std::int16_t id) {
 
 void LotSimulation::tick() {
     diag::Timer timer("simulation tick");
+    if (!arriving_.empty()) {
+        bringArrivals();
+    }
     world_.advanceClock(kNormalTickMs);
     // Kept between ticks so it reuses its storage.
     thread_local std::vector<std::int16_t> ids;

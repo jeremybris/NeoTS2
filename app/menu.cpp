@@ -2,6 +2,7 @@
 // it opens.
 #include "menu.hpp"
 #include "game.hpp"
+#include "scene/family_save.hpp"
 #include "baby_name_dialog.hpp"
 #include "cheat_console.hpp"
 #include "dialog_box.hpp"
@@ -762,6 +763,15 @@ void Game::showNeighborhood(Built built) {
     inNeighborhood_ = true;
     startImposterBaker(hoodHighImposters());
     if (options_.lot > 0) {
+        if (options_.moveInFamily != 0) {
+            // A test: the family moves in first, as Move In's Yes does.
+            try {
+                ts2::scene::moveFamilyIn(openFolder_, options_.moveInFamily, static_cast<std::uint32_t>(options_.lot), 0);
+                hoodUi_.refreshFamilies(openFolder_);
+            } catch (const std::exception& ex) {
+                ts2::diag::warning(std::string("moving in: ") + ex.what());
+            }
+        }
         enterLot(static_cast<std::uint32_t>(options_.lot));
     } else if (options_.clickX >= 0) {
         const auto id = lotAt(orbit_.camera(), width_, height_, static_cast<float>(options_.clickX), static_cast<float>(options_.clickY),
@@ -1224,6 +1234,11 @@ void Game::closeQuitBox() {
 // on, otherwise the lot's card opens when it ends. A click on no lot that can be clicked closes the
 // card.
 void Game::lotClicked(float x, float y) {
+    // A family picked up from the Families bin moves into the lot clicked.
+    if (const auto held = hoodUi_.heldFamily()) {
+        askMoveIn(*held, lotAt(orbit_.camera(), width_, height_, x, y, hood_.stats.lotFootprints));
+        return;
+    }
     const auto id = lotAt(orbit_.camera(), width_, height_, x, y, hood_.stats.lotFootprints);
     if (!hoodUi_.clickable(id)) {
         clickedLot_ = 0;
@@ -3318,6 +3333,9 @@ void Game::mouseEvent(const pf::Event& e) {
 }
 
 void Game::windowClicked(int window) {
+    if (moveInClicked(window)) {
+        return;
+    }
     if (noticeBox_.clicked(screen_, window)) {
         noticeBox_.close(screen_);
         return;

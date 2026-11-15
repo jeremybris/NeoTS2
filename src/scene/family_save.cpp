@@ -380,4 +380,34 @@ void saveFamilyPicture(const fs::path& folder, std::uint32_t family, const std::
     fs::rename(temporary, file);
 }
 
+void moveFamilyIn(const fs::path& folder, std::uint32_t family, std::uint32_t lot, std::int32_t price) {
+    constexpr std::uint32_t kInHouse = 1;  // the family record's flag the game sets on moving in
+    const fs::path hoodFile = content::neighborhoodPackage(folder);
+    std::optional<fami::Family> moving;
+    {
+        dbpf::Package package{hoodFile};
+        for (const auto& e : package.entries()) {
+            if (e.key.type != kFamilyType || e.key.instance >= kFirstPool) {
+                continue;
+            }
+            auto f = fami::parse(package.read(e));
+            if (e.key.instance == family) {
+                moving = std::move(f);
+            } else if (f.lot == static_cast<std::int32_t>(lot) && !f.members.empty()) {
+                fail("lot " + std::to_string(lot) + " has a household already");
+            }
+        }
+    }
+    if (!moving || moving->lot != 0 || moving->members.empty()) {
+        fail("family " + std::to_string(family) + " isn't in the Families bin");
+    }
+    moving->lot = static_cast<std::int32_t>(lot);
+    moving->currentLot = static_cast<std::int32_t>(lot);
+    moving->flags |= kInHouse;
+    moving->funds -= price;
+    moving->funds2 -= price;
+    const content::ReplacedResource change{{kFamilyType, kLocal, family, 0}, fami::encode(*moving)};
+    content::rewritePackage(hoodFile, std::span(&change, 1));
+}
+
 } // namespace ts2::scene
