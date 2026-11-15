@@ -91,7 +91,13 @@ std::string dashed(const std::string& tone) {
 }
 
 // The Sim's DNA as the game writes a new Sim's: its skin, hair and eye colours and the face parts it
-// passes on, each with its recessive copy (0x10000000 + the key), in the game's order.
+// passes on, each with its recessive copy (0x10000000 + the key), in the game's order. The keys are
+// sim::genetics': 6 the skin tone, 2 its alleles, 1 the hair colour, 3 the eyes, 5 the face. The
+// game draws a Sim's skin from gene 6, so a Sim with the wrong tone there looks different in the game
+// than in Create-a-Sim (as the game's own new Sims show: User00488 skin 3, hair 2 has 6=3, 2=3, 1=2).
+// The gene keys, as sim/genetics.hpp has them (ts2sim builds on this library, so they're kept here too).
+constexpr std::uint32_t kHairGene = 1, kSkinAllelesGene = 2, kEyeGene = 3, kFaceGene = 5, kSkinGene = 6;
+
 std::vector<std::uint8_t> dna(const NewFamilySim& sim) {
     const auto& p = sim.made.data.properties;
     const std::string skin = dashed(property(p, "skincolor")), hair = dashed(property(p, "haircolor")), eyes = dashed(property(p, "eyecolor"));
@@ -100,11 +106,11 @@ std::vector<std::uint8_t> dna(const NewFamilySim& sim) {
         out.push_back({"AnyString", std::to_string(key), "0x0b8bea18", value});
         out.push_back({"AnyString", std::to_string(0x10000000u + key), "0x0b8bea18", recessive});
     };
-    add(6, hair, hair);
-    add(2, hair, hair);
-    add(1, skin, skin);
-    add(3, eyes, eyes);
-    add(5, "nose,brow,cheek,jaw,", "");
+    add(kSkinGene, skin, skin);
+    add(kSkinAllelesGene, skin, skin);
+    add(kHairGene, hair, hair);
+    add(kEyeGene, eyes, eyes);
+    add(kFaceGene, "nose,brow,cheek,jaw,", "");
     return propset::encodeText(out);
 }
 
