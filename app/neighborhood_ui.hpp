@@ -59,6 +59,8 @@ public:
 
     // Shows the panels for a neighborhood (its folder in Neighborhoods and its name).
     void open(const std::filesystem::path& folder, const std::string& name, Content content);
+    // Reads the families without a home again (a family saved from Create-a-Sim) for the Families bin.
+    void refreshFamilies(const std::filesystem::path& folder);
     void close();
 
     enum class Bin { None, Families, Lots, Decorations };

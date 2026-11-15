@@ -352,6 +352,9 @@ private:
     void drawCasSim();
     // The family standing in a row, drawn for the preview, each member's middle told to the screen.
     void drawCasFamily();
+    std::optional<ts2::tga::Pixels> drawCasFamilyPicture(int width, int height, std::vector<int>& middles);
+    // Accept Family: the family saved into the open neighborhood (its Sims' files, records and picture).
+    void saveCasFamily();
     CasScreen cas_{screen_};
     std::shared_future<ts2::scene::OutfitCatalog> casCatalog_;
     std::unique_ptr<ts2::scene::RigLibrary> casRigs_;

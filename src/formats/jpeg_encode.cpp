@@ -289,4 +289,53 @@ std::vector<std::uint8_t> encode(const tga::Pixels& picture, int quality) {
     return out;
 }
 
+std::vector<std::uint8_t> encodeWithAlpha(const tga::Pixels& picture, int quality) {
+    auto out = encode(picture, quality);
+    if (out.size() < 4 || picture.rgba.size() != static_cast<std::size_t>(picture.width) * picture.height * 4) {
+        return out;
+    }
+    // The alpha, one byte a pixel from the top row, run-length coded: a byte from 0x80 repeats the
+    // next byte 257 minus it times (2 to 129), a byte below 0x80 is followed by that many plus one
+    // bytes as they are (1 to 128).
+    std::vector<std::uint8_t> alpha;
+    alpha.reserve(picture.rgba.size() / 4);
+    for (std::size_t i = 3; i < picture.rgba.size(); i += 4) {
+        alpha.push_back(picture.rgba[i]);
+    }
+    std::vector<std::uint8_t> coded{'A', 'L', 'F', 'A'};
+    for (std::size_t i = 0; i < alpha.size();) {
+        std::size_t run = 1;
+        while (i + run < alpha.size() && alpha[i + run] == alpha[i] && run < 129) {
+            ++run;
+        }
+        if (run >= 2) {
+            coded.push_back(static_cast<std::uint8_t>(257 - run));
+            coded.push_back(alpha[i]);
+            i += run;
+            continue;
+        }
+        // Bytes as they are, up to the next run of two.
+        std::size_t n = 1;
+        while (i + n < alpha.size() && n < 128 && !(i + n + 1 < alpha.size() && alpha[i + n] == alpha[i + n + 1])) {
+            ++n;
+        }
+        coded.push_back(static_cast<std::uint8_t>(n - 1));
+        coded.insert(coded.end(), alpha.begin() + static_cast<std::ptrdiff_t>(i), alpha.begin() + static_cast<std::ptrdiff_t>(i + n));
+        i += n;
+    }
+    // One segment holds it, after the JFIF header; a picture whose alpha doesn't fit goes without.
+    if (coded.size() + 2 > 0xFFFF) {
+        return out;
+    }
+    std::size_t at = 2;
+    if (out.size() > 6 && out[2] == 0xFF && out[3] == 0xE0) {
+        at = 4 + (static_cast<std::size_t>(out[4]) << 8 | out[5]);
+    }
+    const std::size_t length = coded.size() + 2;
+    std::vector<std::uint8_t> segment{0xFF, 0xE0, static_cast<std::uint8_t>(length >> 8), static_cast<std::uint8_t>(length)};
+    segment.insert(segment.end(), coded.begin(), coded.end());
+    out.insert(out.begin() + static_cast<std::ptrdiff_t>(at), segment.begin(), segment.end());
+    return out;
+}
+
 } // namespace ts2::jpeg

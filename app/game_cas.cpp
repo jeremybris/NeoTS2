@@ -8,6 +8,8 @@
 #include "diag/log.hpp"
 #include "scene/age_data.hpp"
 #include "scene/character_file.hpp"
+#include "scene/family_save.hpp"
+#include "formats/jpeg.hpp"
 #include "scene/portrait.hpp"
 #include "scene/sim_builder.hpp"
 #include "scene/sims.hpp"
@@ -32,6 +34,8 @@ constexpr float kFovY = 0.5f, kHeightShown = 1.32f, kLookAt = 0.56f;
 // The family's row: its members this far apart, each about this wide, and at least this tall a
 // frame (toddlers and children alone stand no bigger than they are).
 constexpr float kMemberSpacing = 0.75f, kMemberWidth = 0.9f, kFamilyLeastHeight = 1.6f;
+// The family's picture in the Families bin is this many pixels square, as the game's are.
+constexpr int kFamilyPictureSide = 512;
 constexpr std::uint32_t kEveryday = 1, kHuman = 1;
 // Parts of these flags are left out of what Create-a-Sim offers, as Make New Character leaves them out
 // of what it draws (career uniforms, costumes, hats).
@@ -155,9 +159,9 @@ void Game::casAction(CasScreen::Action action) {
         casFamilyRedraw_ = true;
         break;
     case CasScreen::Action::Accepted:
-        ts2::diag::step(std::format("create-a-sim: family \"{}\" accepted with {} Sims; saving new families isn't built yet, so it isn't kept",
-                                    cas_.familyName(), cas_.members().size()));
+        saveCasFamily();
         closeCas();
+        hoodUi_.refreshFamilies(openFolder_);  // the bin shows it
         break;
     case CasScreen::Action::Remake:
         casMade_.reset();
@@ -511,14 +515,12 @@ void Game::drawCasChoice(std::size_t choice) {
 }
 
 
-void Game::drawCasFamily() {
+std::optional<ts2::tga::Pixels> Game::drawCasFamilyPicture(int width, int height, std::vector<int>& middles) {
     using namespace ts2::scene;
-    const int width = cas_.previewWidth(), height = cas_.previewHeight();
-    const ts2::tga::Pixels nothing{1, 1, {0, 0, 0, 0}};
+    middles.clear();
     const std::size_t count = casLooks_.size();
     if (count == 0 || width <= 0 || height <= 0) {
-        cas_.setFamilyPicture(nothing, {});
-        return;
+        return std::nullopt;
     }
     // The members in a row along the world's x axis, the first on the picture's left (the
     // portrait camera looks at a Sim from +y, so the picture's right is -x).
@@ -570,8 +572,7 @@ void Game::drawCasFamily() {
         }
     }
     if (!firstShot) {
-        cas_.setFamilyPicture(nothing, {});
-        return;
+        return std::nullopt;
     }
     float fx = firstShot->camera.eye[0] - firstShot->camera.target[0], fy = firstShot->camera.eye[1] - firstShot->camera.target[1];
     if (const float length = std::hypot(fx, fy); length > 1e-4f) {
@@ -599,15 +600,48 @@ void Game::drawCasFamily() {
     }
     renderer_.show(std::move(shown));
     // Each member's middle across the picture: the picture's right is (-fy, fx) in the world.
-    std::vector<int> middles;
     const float pixelsPerMetre = static_cast<float>(width) / 2 / (distance * tanH);
     for (std::size_t i = 0; i < count; ++i) {
         middles.push_back(actors[i] ? static_cast<int>(std::lround(width / 2.0f + along[i] * -fy * pixelsPerMetre)) : -100000);
     }
     if (!image) {
-        cas_.setFamilyPicture(nothing, middles);
+        return std::nullopt;
+    }
+    return ts2::content::unpremultiplied(ts2::tga::Pixels{image->width, image->height, std::move(image->rgba)});
+}
+
+void Game::drawCasFamily() {
+    std::vector<int> middles;
+    const auto picture = drawCasFamilyPicture(cas_.previewWidth(), cas_.previewHeight(), middles);
+    cas_.setFamilyPicture(picture ? *picture : ts2::tga::Pixels{1, 1, {0, 0, 0, 0}}, middles);
+}
+
+void Game::saveCasFamily() {
+    using namespace ts2::scene;
+    const auto& members = cas_.members();
+    if (members.size() != casLooks_.size() || openFolder_.empty()) {
+        ts2::diag::warning("create-a-sim: the family can't be saved: its Sims' looks are missing");
         return;
     }
-    cas_.setFamilyPicture(ts2::content::unpremultiplied(ts2::tga::Pixels{image->width, image->height, std::move(image->rgba)}), middles);
+    std::vector<NewFamilySim> sims;
+    for (std::size_t i = 0; i < members.size(); ++i) {
+        const auto& m = members[i];
+        sims.push_back({casLooks_[i], m.firstName, m.bio, m.age, m.gender, m.traits, m.zodiac, m.aspiration});
+    }
+    std::vector<std::string> problems;
+    try {
+        const auto saved = saveNewFamily(*assets_.get(), casCatalog_.get(), openFolder_, cas_.familyName(), sims, problems);
+        // Its picture for the Families bin, as the family view draws it.
+        std::vector<int> middles;
+        if (const auto picture = drawCasFamilyPicture(kFamilyPictureSide, kFamilyPictureSide, middles)) {
+            saveFamilyPicture(openFolder_, saved.family, ts2::jpeg::encodeWithAlpha(*picture));
+        }
+        ts2::diag::step(std::format("create-a-sim: saved family \"{}\" as family {} with {} Sims", cas_.familyName(), saved.family, sims.size()));
+    } catch (const std::exception& ex) {
+        ts2::diag::warning(std::string("create-a-sim: the family couldn't be saved: ") + ex.what());
+    }
+    for (const auto& problem : problems) {
+        ts2::diag::warning("create-a-sim: " + problem);
+    }
 }
 } // namespace app

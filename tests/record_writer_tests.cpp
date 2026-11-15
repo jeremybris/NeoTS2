@@ -5,6 +5,8 @@
 
 #include "formats/binary_writer.hpp"
 #include "formats/fami.hpp"
+#include "formats/image.hpp"
+#include "formats/jpeg.hpp"
 #include "formats/famt.hpp"
 #include "formats/ngbh.hpp"
 #include "formats/propset.hpp"
@@ -319,6 +321,29 @@ void oldMaterialsAreWrittenBackAsTheyWere() {
     CHECK(sg::encodeMaterial(m) == bytes);
 }
 
+void familyPicturesKeepTheirAlpha() {
+    // A clear picture with an opaque square, as a family's picture is drawn: the alpha comes back.
+    ts2::tga::Pixels picture{64, 48, std::vector<std::uint8_t>(64 * 48 * 4, 0)};
+    for (std::uint32_t y = 10; y < 30; ++y) {
+        for (std::uint32_t x = 20; x < 40; ++x) {
+            std::uint8_t* p = &picture.rgba[(y * 64 + x) * 4];
+            p[0] = 200;
+            p[1] = 100;
+            p[2] = 50;
+            p[3] = x == 20 ? 128 : 255;  // an edge of its own, so a run and bytes as they are both show
+        }
+    }
+    const auto jpeg = ts2::jpeg::encodeWithAlpha(picture);
+    CHECK(jpeg.size() > 20 && jpeg[0] == 0xFF && jpeg[1] == 0xD8);
+    const auto back = ts2::image::decode(jpeg);
+    CHECK(back && back->width == 64 && back->height == 48);
+    bool same = back.has_value();
+    for (std::size_t i = 3; same && i < picture.rgba.size(); i += 4) {
+        same = back->rgba[i] == picture.rgba[i];
+    }
+    CHECK(same);
+}
+
 } // namespace
 
 std::vector<Test> recordWriterTests() {
@@ -335,5 +360,6 @@ std::vector<Test> recordWriterTests() {
         {"age data is written as the game writes a Sim's", ageDataIsWrittenAsTheGameWritesIt},
         {"copied scenegraph resources are renamed and relinked", copiedResourcesAreRenamedAndRelinked},
         {"older materials are written back as they were", oldMaterialsAreWrittenBackAsTheyWere},
+        {"a family's picture keeps its alpha", familyPicturesKeepTheirAlpha},
     };
 }

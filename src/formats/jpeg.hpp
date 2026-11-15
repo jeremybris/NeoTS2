@@ -19,5 +19,8 @@ namespace ts2::jpeg {
 // `quality`, 1 to 100), as the game saves snapshots. Alpha is left out. Empty for an empty or
 // malformed picture, or one over 65535 pixels on a side.
 [[nodiscard]] std::vector<std::uint8_t> encode(const tga::Pixels& picture, int quality = 90);
+// The same with its alpha in the game's "ALFA" segment after the JFIF header, as the game keeps the
+// pictures of families (image::decode reads it back). Without it when it doesn't fit one segment.
+[[nodiscard]] std::vector<std::uint8_t> encodeWithAlpha(const tga::Pixels& picture, int quality = 90);
 
 } // namespace ts2::jpeg

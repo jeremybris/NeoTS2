@@ -425,6 +425,13 @@ std::vector<NeighborhoodUi::DecorationItem> decorationItems(const fs::path& inst
 NeighborhoodUi::NeighborhoodUi(ts2::ui::Screen& screen, ts2::content::UiData& data, int width, int height)
     : screen_(screen), data_(data), width_(width), height_(height) {}
 
+void NeighborhoodUi::refreshFamilies(const fs::path& folder) {
+    familyPictures_ = homelessFamilies(folder);
+    if (families_ >= 0) {
+        layoutStrip(familyStrip_, familyPictures_);
+    }
+}
+
 NeighborhoodUi::Content NeighborhoodUi::read(const fs::path& folder, const fs::path& user, const fs::path& install) {
     const auto id = readNeighborhoodId(folder);
     return {homelessFamilies(folder), catalogLots(user), livedInLots(folder), lotCards(folder), storyPages(id, user), id, decorationItems(install), user};

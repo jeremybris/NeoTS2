@@ -35,8 +35,8 @@ constexpr std::uint32_t kTemplatePersonGuid = 0x7FD96B54, kTemplatePersonGroup =
 constexpr std::uint32_t kSkinCategory = 0x80;
 // The ages a Sim lives through, youngest first.
 constexpr std::array<std::uint32_t, 5> kAges = {kToddlerAge, kChildAge, kTeenAge, kAdultAge, kElderAge};
-// The game version the stamp names: the newest full character file the game wrote here has it.
-constexpr const char* kGameVersion = "1.0.0.904";
+// The game and version the stamp names, as the Legacy Collection's Create-a-Sim writes them.
+constexpr const char* kGameName = "The Sims 2 Legacy", *kGameVersion = "1.18.0.187";
 
 [[noreturn]] void fail(const std::string& what) { throw std::runtime_error("character file: " + what); }
 
@@ -125,14 +125,14 @@ std::vector<std::uint8_t> simObjectDefinition(std::vector<std::uint8_t> b, std::
     return b;
 }
 
-// The stamp a character file carries: "The Sims 2" and the game's version (a binary property set).
+// The stamp a character file carries: the game and its version (a binary property set).
 std::vector<std::uint8_t> versionStamp() {
     constexpr std::uint32_t kString = 0x0B8BEA18;
     BinaryWriter w;
     w.u32(0xCBE750E0);
     w.u16(2);
     w.u32(2);
-    for (const auto& [key, value] : std::array<std::pair<const char*, const char*>, 2>{{{"0", "The Sims 2"}, {"1", kGameVersion}}}) {
+    for (const auto& [key, value] : std::array<std::pair<const char*, const char*>, 2>{{{"0", kGameName}, {"1", kGameVersion}}}) {
         w.u32(kString);
         w.u32(static_cast<std::uint32_t>(std::string_view(key).size()));
         w.text(key);

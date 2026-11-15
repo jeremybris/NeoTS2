@@ -39,8 +39,8 @@ namespace app {
 // elder, as the game does.
 //
 // Not built yet: steps 2 and 4 (heads, makeup), turn-ons and offs, the face tabs, custom hair colours,
-// hair per outfit, the Sim bin, biography, custom skins and fitness, collections, family
-// relationships, and saving the family. Their buttons are greyed.
+// hair per outfit, the Sim bin, custom skins and fitness, collections, and family
+// relationships. Their buttons are greyed. Accept Family saves the family (see Game::saveCasFamily).
 class CasScreen {
 public:
     // The game's data is reached through the screen.
