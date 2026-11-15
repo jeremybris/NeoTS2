@@ -30,6 +30,12 @@ public:
         ts2::tga::Pixels picture;
         bool forSale = false;
     };
+    // A household without a home (in the Families bin): its family number, name, biography and funds.
+    struct BinFamily {
+        std::uint32_t id = 0;
+        std::string name, bio;
+        std::int32_t funds = 0;
+    };
     // A page of the neighborhood's story: its snapshot and caption (the player's, or a premade
     // story's from the game's text, `textResource`).
     struct StoryPage {
@@ -48,6 +54,7 @@ public:
     // neighborhood, off the main thread.
     struct Content {
         std::vector<ts2::tga::Pixels> familyPictures, lotPictures;
+        std::vector<BinFamily> binFamilies;  // the Families bin's, as familyPictures
         std::vector<std::uint32_t> occupied;
         std::map<std::uint32_t, LotCard> cards;  // by lot id
         std::vector<StoryPage> story;
@@ -170,6 +177,9 @@ private:
     Strip familyStrip_, lotStrip_, specialtyStrip_;
     std::map<std::uint32_t, int> lotBackgrounds_;  // each lots bin view's background, by its id
     std::vector<ts2::tga::Pixels> familyPictures_, lotPictures_;
+    std::vector<BinFamily> binFamilies_;
+    // Shows the card of the Families bin's household `index`, beside the bin.
+    void showFamilyCard(std::size_t index);
     Bin bin_ = Bin::None;
     std::vector<std::uint32_t> occupied_;
     std::map<std::uint32_t, LotCard> cards_;

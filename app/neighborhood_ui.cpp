@@ -213,24 +213,43 @@ std::vector<int> childrenWithId(const ts2::ui::Screen& screen, int window, std::
     return out;
 }
 
-// The households without a home, in id order, as their pictures (Thumbnails/<hood>_FamilyThumbnails).
-std::vector<ts2::tga::Pixels> homelessFamilies(const fs::path& folder) {
+// The households without a home, in id order: their pictures (Thumbnails/<hood>_FamilyThumbnails)
+// and, in `families`, their names (string 0 of the string table of their id), biographies (string
+// 1) and funds.
+std::vector<ts2::tga::Pixels> homelessFamilies(const fs::path& folder, std::vector<NeighborhoodUi::BinFamily>& families) {
+    families.clear();
     std::vector<std::uint32_t> ids;
     try {
         ts2::dbpf::Package package{ts2::content::neighborhoodPackage(folder)};
+        std::map<std::uint32_t, NeighborhoodUi::BinFamily> found;
+        std::map<std::uint32_t, ts2::str::StringTable> strings;
         for (const auto& e : package.entries()) {
+            if (e.key.type == kStringsType && e.key.instance < kFirstGameFamily) {
+                strings[e.key.instance] = ts2::str::parse(package.read(e));
+            }
             if (e.key.type != kFamilyType || e.key.instance >= kFirstGameFamily) {
                 continue;
             }
             const auto family = ts2::fami::parse(package.read(e));
             if (family.lot == 0 && !family.members.empty()) {
                 ids.push_back(e.key.instance);
+                found[e.key.instance] = {e.key.instance, {}, {}, family.funds};
             }
         }
+        std::sort(ids.begin(), ids.end());
+        for (const auto id : ids) {
+            auto f = found[id];
+            if (const auto table = strings.find(id); table != strings.end()) {
+                const auto texts = table->second.forLanguage(1);
+                f.name = texts.size() > 0 ? texts[0]->value : std::string();
+                f.bio = texts.size() > 1 ? texts[1]->value : std::string();
+            }
+            families.push_back(std::move(f));
+        }
     } catch (const std::exception&) {
+        families.clear();
         return {};
     }
-    std::sort(ids.begin(), ids.end());
     std::vector<ts2::tga::Pixels> out(ids.size());
     const fs::path pictures = folder / "Thumbnails" / (folder.filename().u8string() + u8"_FamilyThumbnails.package");
     if (fs::is_regular_file(pictures)) {
@@ -426,7 +445,7 @@ NeighborhoodUi::NeighborhoodUi(ts2::ui::Screen& screen, ts2::content::UiData& da
     : screen_(screen), data_(data), width_(width), height_(height) {}
 
 void NeighborhoodUi::refreshFamilies(const fs::path& folder) {
-    familyPictures_ = homelessFamilies(folder);
+    familyPictures_ = homelessFamilies(folder, binFamilies_);
     if (families_ >= 0) {
         layoutStrip(familyStrip_, familyPictures_);
     }
@@ -434,7 +453,9 @@ void NeighborhoodUi::refreshFamilies(const fs::path& folder) {
 
 NeighborhoodUi::Content NeighborhoodUi::read(const fs::path& folder, const fs::path& user, const fs::path& install) {
     const auto id = readNeighborhoodId(folder);
-    return {homelessFamilies(folder), catalogLots(user), livedInLots(folder), lotCards(folder), storyPages(id, user), id, decorationItems(install), user};
+    Content content{{}, catalogLots(user), {}, livedInLots(folder), lotCards(folder), storyPages(id, user), id, decorationItems(install), user};
+    content.familyPictures = homelessFamilies(folder, content.binFamilies);
+    return content;
 }
 
 void NeighborhoodUi::open(const fs::path& folder, const std::string& name, Content content) {
@@ -478,6 +499,7 @@ void NeighborhoodUi::open(const fs::path& folder, const std::string& name, Conte
     const int familyHolder = screen_.find(families_, kFamilyStripHolder);
     familyStrip_ = {screen_.find(familyHolder, kStripRow), screen_.find(familyHolder, kTallStrip)};
     familyPictures_ = std::move(content.familyPictures);
+    binFamilies_ = std::move(content.binFamilies);
     occupied_ = std::move(content.occupied);
     layoutStrip(familyStrip_, familyPictures_);
     screen_.setVisible(families_, false);
@@ -718,6 +740,8 @@ NeighborhoodUi::Action NeighborhoodUi::clicked(int window) {
         return Action::CreateFamily;
     } else if (screen_.parent(window) == puck_ && id == kPuckDecorations) {
         showBin(bin_ == Bin::Decorations ? Bin::None : Bin::Decorations);
+    } else if (const auto family = stripItemAt(familyStrip_, window); family && *family < binFamilies_.size()) {
+        showFamilyCard(*family);
     } else if (stripClicked(familyStrip_, familyPictures_, window) || stripClicked(lotStrip_, lotPictures_, window) ||
                stripClicked(specialtyStrip_, {}, window) || stripClicked(decorationStrip_, decorationPictures_, window)) {
         // A strip's page turned, or the strip expanded or collapsed.
@@ -930,6 +954,7 @@ void NeighborhoodUi::showCard(std::uint32_t lot, int lotX) {
         const int layout = screen_.find(card_, kFamilyLayout);
         screen_.setVisible(layout, true);
         screen_.setText(screen_.find(layout, kFamilyName), card.name);
+        screen_.setEnabled(screen_.find(layout, kFamilyEnter), true);
         screen_.setText(screen_.find(layout, kFamilyAddress), card.address);
         // The worth the game shows here is more than the family's funds, and how it adds up is not known
         // yet (open question UI-30).
@@ -956,6 +981,39 @@ void NeighborhoodUi::showCard(std::uint32_t lot, int lotX) {
     screen_.setVisible(card_, true);
     screen_.raise(card_);
     cardLot_ = lot;
+}
+
+void NeighborhoodUi::showFamilyCard(std::size_t index) {
+    if (card_ < 0 || index >= binFamilies_.size()) {
+        return;
+    }
+    const BinFamily& family = binFamilies_[index];
+    for (const int c : screen_.children(card_)) {
+        screen_.setVisible(c, false);
+    }
+    const int layout = screen_.find(card_, kFamilyLayout);
+    screen_.setVisible(layout, true);
+    screen_.setText(screen_.find(layout, kFamilyName), family.name);
+    screen_.setText(screen_.find(layout, kFamilyAddress), {});
+    // Its funds, as the game writes money: "§" and the thousands apart.
+    std::string digits = std::to_string(std::abs(static_cast<long long>(family.funds)));
+    for (int at = static_cast<int>(digits.size()) - 3; at > 0; at -= 3) {
+        digits.insert(static_cast<std::size_t>(at), ",");
+    }
+    screen_.setText(screen_.find(layout, kFamilyFunds), (family.funds < 0 ? "-\xC2\xA7" : "\xC2\xA7") + digits);
+    screen_.setText(screen_.find(layout, kFamilyBio), family.bio);
+    if (index < familyPictures_.size() && familyPictures_[index].width > 0) {
+        screen_.setImage(screen_.find(layout, kFamilyPicture), familyPictures_[index]);
+    }
+    // It has no home to enter.
+    screen_.setEnabled(screen_.find(layout, kFamilyEnter), false);
+    // Right of the bin, centred top to bottom, kept on the screen.
+    const int w = screen_.width(card_), h = screen_.height(card_);
+    const int binRight = families_ >= 0 ? screen_.x(families_) + screen_.width(families_) : 0;
+    screen_.move(card_, std::clamp(binRight + kCardGap, 0, std::max(0, width_ - w)), (height_ - h) / 2);
+    screen_.setVisible(card_, true);
+    screen_.raise(card_);
+    cardLot_ = 0;
 }
 
 void NeighborhoodUi::showTag(std::uint32_t lot, int x, int y) {
