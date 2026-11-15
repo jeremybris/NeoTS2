@@ -15,6 +15,7 @@
 #include "diag/log.hpp"
 #include "diag/timing.hpp"
 #include "formats/resource_types.hpp"
+#include "sim/clock.hpp"
 #include "sim/lua_runtime.hpp"
 #include "sim/object_footprint.hpp"
 #include "sim/object_reset.hpp"
@@ -910,6 +911,11 @@ void LotSimulation::findHousehold(const content::Neighborhood& hood, const std::
             } else {
                 arriving_.push_back(guid);  // a family that just moved in: its Sims arrive
             }
+        }
+        // A family moving in brings its funds: the lot's budget (globals 0x0D and 0x0E) is what the
+        // lot last had, not the family's, until the family's Sims live there.
+        if (household_.empty() && !arriving_.empty()) {
+            setFunds(vm_.globals, family.funds);
         }
         return;
     }
