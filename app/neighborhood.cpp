@@ -14,6 +14,7 @@
 #include "formats/nhood_paint_rules.hpp"
 #include "formats/propset.hpp"
 #include "orbit.hpp"
+#include "scene/family_save.hpp"
 #include "scene/lot_scene.hpp"
 #include "scene/lot_skirt.hpp"
 #include "scene/neighborhood_decals.hpp"
@@ -37,7 +38,7 @@ constexpr std::uint32_t kFamilyType = 0x46414D49;
 constexpr std::string_view kSkyEffect = "neighborhoodfxdaynight";
 constexpr int kMostSkyNesting = 8;
 constexpr std::uint8_t kSkyboxMode = 5;
-constexpr std::uint32_t kFirstGameFamily = 0x7FE0;
+using ts2::scene::kFirstGameFamily;
 
 // Whether the neighborhood was saved at night (its Neighborhood ID). Day when it can't be read.
 bool savedAtNight(const std::filesystem::path& folder) {

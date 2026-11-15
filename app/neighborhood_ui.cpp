@@ -14,6 +14,7 @@
 #include "formats/lot_description.hpp"
 #include "formats/neighborhood_id.hpp"
 #include "formats/str.hpp"
+#include "scene/family_save.hpp"
 
 #include <algorithm>
 #include <array>
@@ -94,8 +95,7 @@ constexpr int kTallTileTop = 11, kTileRowStep = 93;
 // The lot catalog's picture of a lot.
 constexpr std::uint32_t kImageType = 0x856DDBAC, kLotPicture = 0x35CA0002;
 constexpr std::uint32_t kFamilyType = 0x46414D49, kFamilyPictureType = 0x8C3CE95A;
-// Families from this id up are the game's own (townies, service people), not households.
-constexpr std::uint32_t kFirstGameFamily = 0x7FE0;
+using ts2::scene::kFirstGameFamily;
 constexpr std::uint32_t kStringsType = 0x53545223;
 // The lot card (Lot Info Dialog) and the layouts used here: a household's lot with a bio, and a
 // community lot. Each layout's windows share its high digits.

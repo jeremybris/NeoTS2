@@ -35,8 +35,6 @@ namespace fs = std::filesystem;
 constexpr std::uint32_t kLocal = 0xFFFFFFFF;
 constexpr std::uint32_t kFamilyType = 0x46414D49, kDescription = 0xAACE2EFB, kDna = 0xEBFEE33F, kWants = 0xCD95548E,
                         kStringTable = 0x53545223, kNeighborhood = 0x4E474248, kNeighborList = 0x2C310F46, kNextNeighbor = 0xCC2A6A34;
-// The townie and NPC pools' family records, past every family the player makes.
-constexpr std::uint32_t kFirstPool = 0x7FFE;
 // A new family's funds: 20,000 (Create-a-Sim's kDefaultFamilyFunds), and 5,000 more for each Sim past
 // the first, as the game gave a family of two 25,000.
 constexpr std::int32_t kFunds = 20000, kFundsPerSim = 5000;
@@ -140,7 +138,7 @@ SavedFamily saveNewFamily(Assets& assets, const OutfitCatalog& catalog, const fs
     std::optional<std::vector<std::uint8_t>> neighborhood, neighborList, nextNeighbor;
     for (const auto& e : package.entries()) {
         const auto& k = e.key;
-        if (k.type == kFamilyType && k.instance < kFirstPool) {
+        if (k.type == kFamilyType && k.instance < kFirstGameFamily) {
             const auto f = fami::parse(package.read(e));
             lastFamily = std::max(lastFamily, k.instance);
             familyVersion = std::max(familyVersion, f.version);
@@ -171,7 +169,7 @@ SavedFamily saveNewFamily(Assets& assets, const OutfitCatalog& catalog, const fs
     // The family's number, the Sims' neighbor ids, GUIDs and character files.
     SavedFamily saved;
     saved.family = lastFamily + 1;
-    if (saved.family >= kFirstPool) {
+    if (saved.family >= kFirstGameFamily) {
         fail("the neighborhood has no free family number");
     }
     std::int32_t next = lastNeighbor + 1;
@@ -387,7 +385,7 @@ void moveFamilyIn(const fs::path& folder, std::uint32_t family, std::uint32_t lo
     {
         dbpf::Package package{hoodFile};
         for (const auto& e : package.entries()) {
-            if (e.key.type != kFamilyType || e.key.instance >= kFirstPool) {
+            if (e.key.type != kFamilyType || e.key.instance >= kFirstGameFamily) {
                 continue;
             }
             auto f = fami::parse(package.read(e));

@@ -12,6 +12,11 @@
 
 namespace ts2::scene {
 
+// Family records from this number up are the game's own (townies, service people and other NPC
+// families, numbered down from 0x7FFF: in Belladonna Cove from 0x7FDF); the families the player
+// makes are numbered up from 1.
+inline constexpr std::uint32_t kFirstGameFamily = 0x4000;
+
 // A Sim of a new family, as Create-a-Sim made it: its look, names, age and gender flags (adult 0x08,
 // female 1, male 2), personality points (0 to 10: neat, outgoing, active, playful, nice), zodiac
 // sign (1 Aries to 12 Pisces) and aspiration (Create-a-Sim's: 1 romance, 2 family, 3 fortune,
